@@ -18,3 +18,14 @@ class User:
             return "Registered"
 
         return "Already registered"
+
+def validate(username, password):
+    user = collection.find_one({"username": username})
+    if user is not None:
+        return pwd_context.verify(password, user["password"])
+    return False
+
+if __name__ == "__main__":
+    user = User("username", "password")
+    print(user.register())
+    print(validate("username", "password"))
