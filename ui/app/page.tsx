@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  Search, Bookmark, GitCompareArrowsIcon as CompareArrows, BarChartIcon as BubbleChart,
+  Search, Bookmark, GitCompareArrowsIcon as CompareArrows, BarChartIcon as BubbleChart, HomeIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
@@ -19,6 +19,12 @@ export default function HomePage() {
   }, [setPageTitle]);
 
   const features = [
+    {
+      title: "Login",
+      icon: HomeIcon,
+      href: "/login",
+      description: "Login",
+    },
     {
       title: "Search Circulars",
       icon: Search,

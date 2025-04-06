@@ -76,8 +76,7 @@ class WebScraperService:
                     print(c)
                     self.post_circular_to_api(c)
                     root = Path(__file__).parent.parent.parent
-                    s = "ui/public" + str(c.path)
-                    path = root / s
+                    path = root / str(c.path)
                     self.send_request_to_dataprep(path)
 
             return JSONResponse(

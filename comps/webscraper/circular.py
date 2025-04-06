@@ -142,14 +142,15 @@ class Circular:
             response.raise_for_status()
 
             root = Path(__file__).parent.parent.parent
-            self.path = root / path / os.path.basename(self.pdf_url)
-            logging.info(self.path)
+            pdf = root / "ui/public/pdfs"
+            if not os.path.isdir(pdf):
+                os.makedirs(pdf, exist_ok=True)
+            file = pdf / os.path.basename(self.pdf_url)
 
-            with open(self.path, "wb") as pdf_file:
+            with open(file, "wb") as pdf_file:
                 logging.info("opened")
                 pdf_file.write(response.content)
             logging.info(f"Downloaded successfully: {os.path.join(path, os.path.basename(self.pdf_url))}")
-            self.path = Path("/pdfs") / os.path.basename(self.pdf_url)
             return True
 
         except (requests.RequestException, IOError) as e:
