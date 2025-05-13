@@ -138,6 +138,24 @@ class Circular:
                 else:
                     logging.warning(f"Could not find PDF link tag on page: {self.url}")
 
+            self.references = []
+            reference_circular_id_pattern = re.compile(
+                r'(RBI/\d{2,4}-\d{2,4}/\d+|[A-Z]+\.[A-Z]+(?:\.[A-Z]+)?\.\d+/\d{2}\.\d{2}\.\d+/\d{4}-\d{2})',
+                re.IGNORECASE
+            )
+
+            for a_tag in soup.find_all('a', href=True):
+                href = a_tag['href']
+                text = a_tag.get_text(strip=True)
+                if ('NotificationUser.aspx' in href or 'BS_ViewMasCirculardetails.aspx' in href):
+                    match = reference_circular_id_pattern.search(text)
+                    if match:
+                        reference_circular_id = match.group(0)
+                        reference_core_id = self._parse_core_id(reference_circular_id)
+                        if reference_core_id != self.core_id:
+                            self.references.append(reference_circular_id)
+                        logging.info(f"Found reference: {reference_circular_id}")
+
         except requests.RequestException as e:
             logging.error(f"Error fetching metadata for {self.url}: {e}")
             raise

@@ -40,6 +40,11 @@ class WebScraperService:
                 self._neo4j_driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
                 self._neo4j_driver.verify_connectivity()
                 logger.info(f"Successfully connected to Neo4j at {NEO4J_URI}")
+                with self._neo4j_driver.session() as session:
+                    session.run("CREATE INDEX circular_core_id IF NOT EXISTS FOR (n:Circular) ON (n.core_id)")
+                    session.run("CREATE INDEX circular_title IF NOT EXISTS FOR (n:Circular) ON (n.title)")
+                    session.run("CREATE INDEX circular_date IF NOT EXISTS FOR (n:Circular) ON (n.date)")
+                    logger.info("Ensured necessary indexes for linking exist.")
                 return
             except ServiceUnavailable as e:
                 logger.warning(f"Attempt {attempt}/{max_retries}: Neo4j not ready ({e}). Retrying in {delay}s...")
@@ -69,7 +74,7 @@ class WebScraperService:
         self.service.add_route(self.endpoint, self.handle_request, methods=["POST"])
         self.service.start()
 
-    def _link_related_circulars(self, circular: Circular):
+    def _link_circulars_version(self, circular: Circular):
         if not self._neo4j_driver:
             logger.error("Neo4j driver not available. Skipping linking.")
             return
@@ -105,12 +110,18 @@ class WebScraperService:
             c.date = CASE WHEN $date IS NOT NULL THEN datetime($date) ELSE c.date END,
             c.url = $url,
             c.updated_at = timestamp()
+
         WITH c
-        WHERE c.core_id IS NOT NULL AND c.core_id <> '' AND c.core_id IS NOT NULL
-        MATCH (related:Circular)
-        WHERE related.core_id = c.core_id AND related.pdf_url <> c.pdf_url
-        MERGE (c)-[r:RELATED_TO]-(related)
-        RETURN count(r) as relationships_created_or_matched
+        WHERE c.core_id IS NOT NULL AND c.core_id <> ''
+
+        OPTIONAL MATCH (tail:Circular)
+        WHERE tail.core_id = c.core_id
+        AND tail.title = c.title
+        AND NOT EXISTS((tail)-[:VERSION]->())
+
+        WITH c, tail
+        WHERE tail IS NOT NULL AND tail <> c
+        MERGE (tail)-[r:VERSION {core_id: c.core_id, title: c.title}]->(c)
         """
         params = {
             "pdf_url": circular.pdf_url,
@@ -127,11 +138,47 @@ class WebScraperService:
                 summary = result.consume()
                 logger.info(f"Neo4j: Processed node for {circular.pdf_url}. "
                             f"Nodes created: {summary.counters.nodes_created}, "
-                            f"Relationships created: {summary.counters.relationships_created}, "
+                            f"Version Relationships created: {summary.counters.relationships_created}, "
                             f"Properties set: {summary.counters.properties_set}")
         except Exception as e:
             logger.error(f"Failed to execute Neo4j query for {circular.pdf_url}: {e}")
             logger.error(f"Query params for failed Neo4j op: {params}")
+
+    def _link_circulars_references(self, circular: Circular):
+        if not self._neo4j_driver:
+            logger.error("Neo4j driver not available. Skipping linking.")
+            return
+
+        with self._neo4j_driver.session() as session:
+            for reference_circular_id in circular.references:
+                try:
+                    result = session.run(
+                        """
+                        MATCH (ref: Circular)
+                        WHERE ref._id ENDS WITH $reference_id
+                        OR ref._id STARTS WITH $reference_id
+                        RETURN ref._id AS id
+                        LIMIT 1
+                        """,
+                        reference_id=reference_circular_id
+                    )
+                    record = result.single()
+                    if record:
+                        full_ref_id = record["id"]
+                        session.run(
+                            """
+                            MATCH (src: Circular {_id: $src_id})
+                            MATCH (ref: Circular {_id: $ref_id})
+                            MERGE (src)-[:REFERS]->(ref)
+                            """,
+                            src_id=circular._id,
+                            ref_id=full_ref_id
+                        )
+                        logger.info(f"Linked {circular._id} -> {full_ref_id} with REFERS")
+                    else:
+                        logger.warning(f"Reference circular with {reference_circular_id} not found.")
+                except Exception as e:
+                    logger.error(f"Error linking reference {reference_circular_id}: {e}")
 
     def post_circular_to_api(self, circular: Circular):
         api_date = None
@@ -148,7 +195,6 @@ class WebScraperService:
             'bookmark': getattr(circular, 'bookmark', False),
             'path': str(circular.path) if circular.path else None,
             'conversation_id': getattr(circular, 'conversation_id', None),
-            'references': getattr(circular, 'references', []),
             'pdf_url': circular.pdf_url
         }
         url = f"http://{server_host_ip}:{server_port}/api/circulars"
@@ -255,13 +301,14 @@ class WebScraperService:
                     if c.download_pdf():  
                         logger.info(f"Processing downloaded circular: {c._id} (Date: {c.date.strftime('%Y-%m-%d') if isinstance(c.date, datetime) else c.date})")
 
-                        self._link_related_circulars(c)
+                        self._link_circulars_version(c)
+                        self._link_circulars_references(c)
                         self.post_circular_to_api(c)
 
                         if c.path:
                             local_pdf_path_for_dataprep = Path(c.path)
                             root = Path(__file__).parent.parent.parent
-                            actual_local_path = root / local_pdf_path_for_dataprep
+                            actual_local_path = root / "ui" / "public" / str(local_pdf_path_for_dataprep).lstrip('/')
 
                             if actual_local_path.is_file():
                                 self.send_request_to_dataprep(actual_local_path)
