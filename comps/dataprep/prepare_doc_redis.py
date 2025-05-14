@@ -182,7 +182,6 @@ def ingest_chunks_to_redis(file_name: str, chunks: List):
         if logflag:
             logger.info(f"[ ingest chunks ] {e}. Fail to store chunks of file {file_name}.")
         raise HTTPException(status_code=500, detail=f"Fail to store chunks of file {file_name}.")
-    return True
 
 def get_table_description(item: Table):
     server_host_ip = os.getenv("LLM_SERVER_HOST_IP")
@@ -222,9 +221,12 @@ def get_table_description(item: Table):
 
     if use_model_param and model_name:
         data["model"] = model_name
+    else:
+        data["file_name"] = ""
 
     response = requests.post(url, headers=headers, json=data)
     response_data = json.loads(response.text)
+    print(response_data)
     return response_data['choices'][0]['message']['content']
 
 
@@ -293,7 +295,11 @@ def ingest_data_to_redis(parser_type: str, doc_path: DocPath):
 
     file_name = doc_path.path.split("/")[-1]
     # print(chunks)
-    return ingest_chunks_to_redis(file_name, chunks)
+    ingest_chunks_to_redis(file_name, chunks)
+    if parser_type == "lightweight":
+        return " ".join([text.content for text in text_content])
+    else:
+        return ""
 
 
 @register_microservice(name="opea_service@prepare_doc_redis", endpoint="/v1/dataprep", host="0.0.0.0", port=6007)
@@ -339,7 +345,7 @@ async def ingest_documents(
 
             save_path = upload_folder + encode_file
             await save_content_to_local_disk(save_path, file)
-            ingest_data_to_redis(
+            text = ingest_data_to_redis(
                 parser_type,
                 DocPath(
                     path=save_path,
@@ -374,7 +380,7 @@ async def ingest_documents(
         # except:
         #     # Stop the SparkContext
         #     sc.stop()
-        result = {"status": 200, "message": "Data preparation succeeded"}
+        result = {"status": 200, "message": "Data preparation succeeded", "text": text}
         if logflag:
             logger.info(result)
         return result

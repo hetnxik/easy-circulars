@@ -111,12 +111,15 @@ export RETRIEVER_SERVICE_HOST_IP=localhost
 export RETRIEVER_SERVICE_PORT=5011
 export RERANK_SERVER_HOST_IP=localhost
 export RERANK_SERVER_PORT=8810
-export LLM_SERVER_HOST_IP=localhost
-export LLM_SERVER_PORT=5101
+export LLM_SERVER_HOST_IP=easy-circulars-groq
+export LLM_SERVER_PORT=8000
 export GROQ_API_KEY=<GROQ_API_KEY>
 export MONGO_HOST=localhost
 export MONGO_PORT=27018
 export MONGO_DB=easy_circulars
+export NEO4J_URI="bolt://localhost:7687"
+export NEO4J_USER="neo4j"
+export NEO4J_PASSWORD="password"
 
 # Activate the environment
 source venv/bin/activate

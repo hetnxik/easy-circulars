@@ -103,7 +103,12 @@ export default function YearMonthSearch() {
                       className="flex items-center justify-between cursor-pointer px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition"
                       onClick={() => fetchCircularsByMonth(year, month.value)}
                     >
-                      <span className="text-gray-700">{month.name}</span>
+                      <span className="text-gray-700">
+                        {month.name}
+                        {expandedMonth?.year === year && expandedMonth?.month === month.value && (
+                          <span className="ml-2 text-md text-gray-500">({circulars.length})</span>
+                        )}
+                      </span>
                       {expandedMonth?.year === year && expandedMonth?.month === month.value ? (
                         <ChevronDown />
                       ) : (

@@ -5,11 +5,12 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from datetime import datetime
 import os
+import json
 import requests
-from pathlib import Path
+import re
+from pathlib import Path, PosixPath
 from comps import MicroService, ServiceRoleType
 from neo4j import GraphDatabase
-import signal
 import atexit
 import time
 from neo4j.exceptions import ServiceUnavailable
@@ -101,6 +102,7 @@ class WebScraperService:
             c.title = $title,
             c.core_id = $core_id,
             c.date = CASE WHEN $date IS NOT NULL THEN datetime($date) ELSE null END,
+            c.path = $path,
             c.url = $url,
             c.created_at = timestamp()
         ON MATCH SET
@@ -108,6 +110,7 @@ class WebScraperService:
             c.title = $title,
             c.core_id = $core_id,
             c.date = CASE WHEN $date IS NOT NULL THEN datetime($date) ELSE c.date END,
+            c.path = $path,
             c.url = $url,
             c.updated_at = timestamp()
 
@@ -129,6 +132,7 @@ class WebScraperService:
             "title": circular.title,
             "core_id": circular.core_id,
             "date": neo4j_date.isoformat() if neo4j_date else None,
+            "path": str(PosixPath(circular.path)),
             "url": circular.url,
         }
 
@@ -189,6 +193,7 @@ class WebScraperService:
 
         data = {
             '_id': circular._id,
+            'core_id': circular.core_id,
             'title': circular.title,
             'tags': getattr(circular, 'tags', []),
             'date': api_date,
@@ -221,6 +226,9 @@ class WebScraperService:
 
             if response.status_code == 200:
                 logger.info(f"Successfully sent {pdf_local_path.name} to DataPrep: {response.status_code}")
+                result = response.json()
+                text = result.get("text")
+                return text
             else:
                 logger.error(f"Failed to send {pdf_local_path.name} to DataPrep: {response.status_code} {response.text}")
         except FileNotFoundError:
@@ -229,6 +237,79 @@ class WebScraperService:
             logger.error(f"Error sending request to DataPrep {url}: {e}")
         except Exception as e:
             logger.error(f"Unexpected error sending to DataPrep for {pdf_local_path}: {e}")
+
+    def generate_tags_from_text(self, text: str):
+        server_host_ip = os.getenv("LLM_SERVER_HOST_IP")
+        server_port = os.getenv("LLM_SERVER_PORT")
+        model_name = os.getenv("LLM_MODEL_ID")
+        use_model_param = os.getenv("LLM_USE_MODEL_PARAM", "false").lower() == "true"
+
+        url = f"http://{server_host_ip}:{server_port}/v1/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream"
+        }
+
+        logger.info("Generating tags...")
+        base_prompt = f"""
+            Given the following RBI Circular text, identify relevant tags.
+
+            Text: {str(text)}
+
+            CRITICAL INSTRUCTION: You must format your entire response in EXACTLY the following way:
+
+            TAG: [first-tag]
+            TAG: [second-tag]
+            TAG: [third-tag]
+            ...
+
+            Replace [first-tag], [second-tag], etc. with actual tags that are:
+            - AT MOST 2 words each
+            - ALL LOWERCASE
+            - Words SEPARATED BY HYPHENS
+            - RELEVANT to the content (no generic fillers)
+
+            IMPORTANT:
+            - Generate UP TO 5 tags maximum
+            - Include ONLY truly relevant tags - fewer than 5 is acceptable if there aren't enough relevant concepts
+            - Each tag must be on its own line with the exact "TAG: " prefix
+            - PROVIDE NOTHING ELSE in your response - no explanations, introductions, or JSON
+
+            Your entire response should ONLY contain lines starting with "TAG: " followed by a relevant tag.     
+        """    
+
+        data = {
+            "messages": [
+                {
+                    "role": "system",
+                    "content": """
+                        You are a helpful assistant that always responds with valid JSON.
+                    """
+                },
+                {
+                    "role": "user",
+                    "content": f"For the given problem statement, return the metadata in JSON format with all the required fields.\n Problem Statement:\n{base_prompt}",
+                }
+            ],
+            "stream": False
+        }
+
+        if use_model_param and model_name:
+            data["model"] = model_name
+        else:
+            data["file_name"] = ""
+
+        response = requests.post(url, headers=headers, json=data)
+        response_data = json.loads(response.text)
+        result = response_data['choices'][0]['message']['content']
+        print(result)
+        tags = []
+        for line in result.strip().split("\n"):
+            if line.startswith("TAG: "):
+                tag = line[5:].strip()
+                if tag:
+                    tags.append(tag)
+        return tags
 
     async def handle_request(self, request: Request):
         try:
@@ -303,7 +384,6 @@ class WebScraperService:
 
                         self._link_circulars_version(c)
                         self._link_circulars_references(c)
-                        self.post_circular_to_api(c)
 
                         if c.path:
                             local_pdf_path_for_dataprep = Path(c.path)
@@ -311,11 +391,14 @@ class WebScraperService:
                             actual_local_path = root / "ui" / "public" / str(local_pdf_path_for_dataprep).lstrip('/')
 
                             if actual_local_path.is_file():
-                                self.send_request_to_dataprep(actual_local_path)
+                                text = self.send_request_to_dataprep(actual_local_path)
+                                c.tags = self.generate_tags_from_text(text)
                             else:
                                 logger.error(f"Constructed local path for DataPrep does not exist or is not a file: {actual_local_path} (original c.path: {c.path})")
                         else:
                             logger.warning(f"Skipping DataPrep for {c._id} because c.path is not set.")
+
+                        self.post_circular_to_api(c)
 
                         processed_for_criteria_count += 1
                     else:

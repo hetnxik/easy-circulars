@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
-  ArrowLeft, Send, ExternalLink, Bookmark,
+  ArrowLeft, Send, ExternalLink, Bookmark, X,
 } from "lucide-react";
 import { Viewer, Worker } from "@react-pdf-viewer/core";
 import Link from "next/link";
@@ -33,19 +33,19 @@ interface Conversation {
 
 interface Circular {
   circular_id: string;
+  core_id: string,
+  url: string,
   title: string;
   tags: string[];
   date: string;
   bookmark: boolean;
   path: string;
   conversation_id: string;
-  references: string[];
   pdf_url: string;
 }
 
 export default function CircularPage() {
   const params = useParams();
-  const router = useRouter();
   const id = decodeURIComponent(params.id as string);
   const searchParams = useSearchParams();
   const from = searchParams.get("from") || "keyword-tag";
@@ -53,9 +53,14 @@ export default function CircularPage() {
   const [circular, setCircular] = useState<Circular | null>(null);
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [input, setInput] = useState("");
-  const [references, setReferences] = useState<Circular[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("content");
+  const [referencesFetched, setReferencesFetched] = useState(false);
+  const [versionsFetched, setVersionsFetched] = useState(false);
+  const [references, setReferences] = useState<Circular[]>([]);
+  const [versions, setVersions] = useState<Circular[]>([]);
+  const [openedReferenceCirculars, setOpenedReferenceCirculars] = useState<Circular[]>([]);
+  const [openedVersionCirculars, setOpenedVersionCirculars] = useState<Circular[]>([]);
 
   const createNewConversation = async (): Promise<string | null> => {
     try {
@@ -122,7 +127,6 @@ export default function CircularPage() {
 
       const { data } = response;
       setCircular(data.circular);
-      setReferences(data.references);
 
       let conversationId = data.circular.conversation_id;
 
@@ -141,11 +145,66 @@ export default function CircularPage() {
     }
   };
 
+  const fetchReferences = async (circularId: string) => {
+    try {
+      const response = await axios.get(
+        `${CHAT_QNA_URL}/api/circular-references`,
+        {
+          params: { circular_id: circularId },
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      const { data } = response;
+      setReferences(data.references);
+    } catch (err) {
+      setError(`Error fetching references: ${err}`);
+    }
+  };
+
+  const fetchVersions = async (circularId: string) => {
+    try {
+      if (!circular?.core_id) {
+        setVersions([]);
+        return;
+      }
+      const response = await axios.get(
+        `${CHAT_QNA_URL}/api/circular-versions`,
+        {
+          params: { circular_id: circularId, core_id: circular?.core_id, title: circular?.title },
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      const { data } = response;
+      setVersions(data.versions);
+    } catch (err) {
+      setError(`Error fetching versions: ${err}`);
+    }
+  };
+
   useEffect(() => {
     if (id) {
       fetchCircular(id);
     }
   }, [id]);
+
+  useEffect(() => {
+    if (activeTab === "references" && !referencesFetched) {
+      fetchReferences(id);
+      setReferencesFetched(true);
+    }
+    if (activeTab === "versions" && !versionsFetched) {
+      fetchVersions(id);
+      setVersionsFetched(true);
+    }
+  }, [activeTab]);
 
   const toggleBookmark = async () => {
     if (circular) {
@@ -199,14 +258,61 @@ export default function CircularPage() {
     }
   };
 
-  const handleReferenceClick = (refId: string) => {
-    setActiveTab("content");
-    router.push(`/circulars/${encodeURIComponent(refId)}`);
+  const handleReferenceClick = (ref: Circular) => {
+    setOpenedReferenceCirculars((prev) => {
+      const alreadyOpened = prev.some((c) => c.circular_id === ref.circular_id);
+      return alreadyOpened ? prev : [...prev, ref];
+    });
+    setActiveTab(`pdf-${ref.circular_id}`);
   };
 
-  if (!circular) {
-    return <div className="p-4">Circular not found</div>;
-  }
+  const handleVersionClick = (ver: Circular) => {
+    setOpenedVersionCirculars((prev) => {
+      const alreadyOpened = prev.some((c) => c.circular_id === ver.circular_id);
+      return alreadyOpened ? prev : [...prev, ver];
+    });
+    setActiveTab(`pdf-${ver.circular_id}`);
+  };
+
+  const closeReferencePdfTab = (circularId: string) => {
+    setOpenedReferenceCirculars((prev) => {
+      const deletedCircularIndex = prev.findIndex((cir) => cir.circular_id === circularId);
+      const updatedCirculars = prev.filter((cir) => cir.circular_id !== circularId);
+
+      if (updatedCirculars.length > 0) {
+        if (deletedCircularIndex === 0) {
+          setActiveTab("references");
+        } else {
+          const newActiveCircular = updatedCirculars[deletedCircularIndex - 1]
+          || updatedCirculars[updatedCirculars.length - 1];
+          setActiveTab(`pdf-${newActiveCircular.circular_id}`);
+        }
+      } else {
+        setActiveTab("references");
+      }
+      return updatedCirculars;
+    });
+  };
+
+  const closeVersionPdfTab = (circularId: string) => {
+    setOpenedVersionCirculars((prev) => {
+      const deletedCircularIndex = prev.findIndex((cir) => cir.circular_id === circularId);
+      const updatedCirculars = prev.filter((cir) => cir.circular_id !== circularId);
+
+      if (updatedCirculars.length > 0) {
+        if (deletedCircularIndex === 0) {
+          setActiveTab("versions");
+        } else {
+          const newActiveCircular = updatedCirculars[deletedCircularIndex - 1]
+          || updatedCirculars[updatedCirculars.length - 1];
+          setActiveTab(`pdf-${newActiveCircular.circular_id}`);
+        }
+      } else {
+        setActiveTab("versions");
+      }
+      return updatedCirculars;
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -219,32 +325,70 @@ export default function CircularPage() {
         </Link>
         <div className="flex gap-2">
           <Button size="sm" onClick={toggleBookmark}>
-            <Bookmark className={`h-4 w-4 mr-2 ${circular.bookmark ? "fill-current" : ""}`} />
-            {circular.bookmark ? "Bookmarked" : "Bookmark"}
+            <Bookmark className={`h-4 w-4 mr-2 ${circular?.bookmark ? "fill-current" : ""}`} />
+            {circular?.bookmark ? "Bookmarked" : "Bookmark"}
           </Button>
         </div>
       </div>
-      <h2 className="text-3xl font-bold">{circular.title}</h2>
+      <h2 className="text-3xl font-bold">{circular?.title}</h2>
       {error && (
         <p className="text-red-500 bg-red-100 border border-red-400 p-2 rounded">
           {error}
         </p>
       )}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+        <TabsList className="flex justify-start">
           <TabsTrigger value="content">Content</TabsTrigger>
           <TabsTrigger value="chat">Chat</TabsTrigger>
           <TabsTrigger value="references">References</TabsTrigger>
+          {openedReferenceCirculars.map((openedCircular) => (
+            <TabsTrigger
+              key={openedCircular.circular_id}
+              value={`pdf-${openedCircular.circular_id}`}
+              className="w-[160px] truncate flex items-center justify-between"
+              title={openedCircular.title}
+            >
+              <span className="truncate">{openedCircular.title}</span>
+              {activeTab === `pdf-${openedCircular.circular_id}` && (
+                <X
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeReferencePdfTab(openedCircular.circular_id);
+                  }}
+                  className="h-4 w-4 ml-2 cursor-pointer shrink-0"
+                />
+              )}
+            </TabsTrigger>
+          ))}
+          <TabsTrigger value="versions">Versions</TabsTrigger>
+          {openedVersionCirculars.map((openedCircular) => (
+            <TabsTrigger key={openedCircular.circular_id} value={`pdf-${openedCircular.circular_id}`} className="w-[160px] truncate flex items-center justify-between">
+              <span className="truncate">{openedCircular.title}</span>
+              {activeTab === `pdf-${openedCircular.circular_id}` && (
+                <X
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeVersionPdfTab(openedCircular.circular_id);
+                  }}
+                  className="h-4 w-4 ml-2 cursor-pointer shrink-0"
+                />
+              )}
+            </TabsTrigger>
+          ))}
         </TabsList>
         <TabsContent value="content">
           <Card>
             <CardContent className="p-6">
               <ScrollArea className="h-[55vh] mb-4">
-                <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.js">
-                  <div>
-                    <Viewer fileUrl={circular.path} />
-                  </div>
-                </Worker>
+                {circular ? (
+                  <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.js">
+                    <div>
+                      <Viewer fileUrl={circular.path} />
+                    </div>
+                  </Worker>
+                ) : (
+                  <p>Loading circular content...</p>
+                )}
               </ScrollArea>
             </CardContent>
           </Card>
@@ -291,22 +435,96 @@ export default function CircularPage() {
           <Card>
             <CardContent className="p-6">
               <ScrollArea className="h-[50vh]">
-                {references.map((ref) => (
+                {references.length !== 0 && references.map((ref) => (
                   <div
                     key={ref.circular_id}
                     className="bg-muted text-sm p-2 mb-2 rounded cursor-pointer hover:bg-muted/80"
-                    onClick={() => handleReferenceClick(ref.circular_id)}
+                    onClick={() => (handleReferenceClick(ref))}
                   >
-                    <div className="font-medium hover:underline flex items-center">
-                      {ref.title}
-                      <ExternalLink className="h-3 w-3 ml-1" />
+                    <div className="font-medium flex items-center justify-between">
+                      <div className="flex text-blue-600 hover:underline">
+                        <span>{ref.title}</span>
+                        <ExternalLink className="h-3 w-3 ml-1" />
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {ref.date ? new Date(ref.date).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        }) : "N/A"}
+                      </p>
                     </div>
                   </div>
                 ))}
+                {references.length === 0 && (
+                  <p className="text-muted-foreground">No references found for the given circular.</p>
+                )}
               </ScrollArea>
             </CardContent>
           </Card>
         </TabsContent>
+        {openedVersionCirculars.map((openedCircular) => (
+          <TabsContent key={`pdf-${openedCircular.circular_id}`} value={`pdf-${openedCircular.circular_id}`}>
+            <Card>
+              <CardContent className="p-6">
+                <ScrollArea className="h-[55vh] mb-4">
+                  <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.js">
+                    <div>
+                      <Viewer fileUrl={openedCircular.path} />
+                    </div>
+                  </Worker>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        ))}
+        <TabsContent value="versions">
+          <Card>
+            <CardContent className="p-6">
+              <ScrollArea className="h-[50vh]">
+                {versions.length !== 0 && versions.map((ver) => (
+                  <div
+                    key={ver.circular_id}
+                    className="bg-muted text-sm p-2 mb-2 rounded cursor-pointer hover:bg-muted/80"
+                    onClick={() => (handleVersionClick(ver))}
+                  >
+                    <div className="font-medium flex items-center justify-between">
+                      <div className="flex text-blue-600 hover:underline">
+                        <span>{ver.title}</span>
+                        <ExternalLink className="h-3 w-3 ml-1" />
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {ver.date ? new Date(ver.date).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        }) : "N/A"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                {versions.length === 0 && (
+                  <p className="text-muted-foreground">No versions found for the given circular.</p>
+                )}
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        {openedReferenceCirculars.map((openedCircular) => (
+          <TabsContent key={`pdf-${openedCircular.circular_id}`} value={`pdf-${openedCircular.circular_id}`}>
+            <Card>
+              <CardContent className="p-6">
+                <ScrollArea className="h-[55vh] mb-4">
+                  <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.js">
+                    <div>
+                      <Viewer fileUrl={openedCircular.path} />
+                    </div>
+                  </Worker>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        ))}
       </Tabs>
     </div>
   );
