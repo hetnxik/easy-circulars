@@ -90,9 +90,14 @@ async def handle_circular_get_versions(request: Request):
                 core_id=core_id,
                 title=title
             )
+            seen_ids = set()
             versions = []
             for record in result:
                 v_node = record["v"]
+                node_id = v_node.get("_id")
+                if node_id in seen_ids:
+                    continue
+                seen_ids.add(node_id)
                 versions.append({
                     "circular_id": v_node.get("_id"),
                     "title": v_node.get("title"),
