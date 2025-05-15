@@ -47,6 +47,12 @@ spec:
               value: easy-circulars-mongodb-deployment
             - name: MONGO_PORT
               value: "27018"
+            - name: NEO4J_URI
+              value: "bolt://easy-circulars-neo4j-deployment:7687"
+            - name: NEO4J_USER
+              value: "neo4j"
+            - name: NEO4J_PASSWORD
+              value: "password"
             - name: RERANK_SERVER_HOST_IP
               value: easy-circulars-tei-reranking-deployment
             - name: RERANK_SERVER_PORT
