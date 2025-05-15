@@ -22,6 +22,10 @@ export default function YearMonthSearch() {
 
   const [expandedYear, setExpandedYear] = useState<number | null>(null);
   const [expandedMonth, setExpandedMonth] = useState<{ year: number; month: number } | null>(null);
+  const [onlyShowWithCirculars, setOnlyShowWithCirculars] = useState(false);
+  const [monthsWithCircularsByYear, setMonthsWithCircularsByYear] = useState<{
+    [year: number]: number[];
+  }>({});
   const [circulars, setCirculars] = useState<Circular[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,6 +84,17 @@ export default function YearMonthSearch() {
           {error}
         </p>
       )}
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="onlyWithCirculars"
+          checked={onlyShowWithCirculars}
+          onChange={(e) => setOnlyShowWithCirculars(e.target.checked)}
+        />
+        <label htmlFor="onlyWithCirculars" className="text-sm text-gray-700">
+          Show only months with circulars
+        </label>
+      </div>
       {/* Year List */}
       <div className="space-y-3">
         {years.map((year) => (
@@ -87,7 +102,23 @@ export default function YearMonthSearch() {
             {/* Year Header */}
             <div
               className="flex items-center justify-between cursor-pointer text-lg font-semibold text-gray-800 hover:text-primary transition"
-              onClick={() => setExpandedYear(expandedYear === year ? null : year)}
+              onClick={async () => {
+                if (expandedYear === year) {
+                  setExpandedYear(null);
+                } else {
+                  setExpandedYear(year);
+                  if (!monthsWithCircularsByYear[year]) {
+                    try {
+                      const response = await axios.get<number[]>(`${CHAT_QNA_URL}/api/circulars`, {
+                        params: { year, only_months: true },
+                      });
+                      setMonthsWithCircularsByYear((prev) => ({ ...prev, [year]: response.data }));
+                    } catch (err) {
+                      setError(`Failed to fetch months for year ${year}: ${err}`);
+                    }
+                  }
+                }
+              }}
             >
               <span>{year}</span>
               {expandedYear === year ? <ChevronDown /> : <ChevronRight />}
@@ -96,7 +127,10 @@ export default function YearMonthSearch() {
             {/* Month List (Only show if year is expanded) */}
             {expandedYear === year && (
               <div className="ml-4 mt-3 space-y-2 transition-all">
-                {months.map((month) => (
+                {months
+                  .filter((month) => !onlyShowWithCirculars
+                  || (monthsWithCircularsByYear[year]?.includes(month.value)))
+                  .map((month) => (
                   <div key={month.value}>
                     {/* Month Header */}
                     <div
@@ -141,7 +175,7 @@ export default function YearMonthSearch() {
                         return <ul className="ml-6 mt-2 space-y-2 border-l-2 border-gray-300 pl-3">{content}</ul>;
                       })()}
                   </div>
-                ))}
+                  ))}
               </div>
             )}
           </div>
