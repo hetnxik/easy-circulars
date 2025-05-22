@@ -32,9 +32,9 @@ spec:
             - name: HUGGINGFACEHUB_API_TOKEN
               value: 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
             - name: LLM_SERVER_HOST_IP
-              value: g2-r2-2.iind.intel.com
+              value: g2-r1-2.iind.intel.com
             - name: LLM_SERVER_PORT
-              value: "8080"
+              value: "31025"
             - name: LLM_MODEL_ID
               value: "meta-llama/Meta-Llama-3.1-8B-Instruct"
             - name: LLM_USE_MODEL_PARAM
