@@ -56,7 +56,7 @@ spec:
             - name: https_proxy
               value: http://proxy-dmz.intel.com:912
             - name: no_proxy
-              value: 127.0.0.1,localhost,.intel.com,easy-circulars-dataprep-deployment,easy-circulars-backend-deployment,g2-r2-2.iind.intel.com
+              value: 127.0.0.1,localhost,.intel.com,easy-circulars-dataprep-deployment,easy-circulars-backend-deployment,g2-r1-2.iind.intel.com
           image: navchetna/easy-circulars-webscraper:latest
           name: easy-circulars-webscraper-container
           ports:
