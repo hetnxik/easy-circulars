@@ -171,6 +171,13 @@ curl -X POST "http://localhost:5102/v1/scrape" \
      -d '{"month": 11, "year": 2023}'
 ```
 
+To extract circulars for a specific day, month and year, send a POST request to the service:
+```bash
+curl -X POST "http://localhost:5102/v1/scrape" \    
+     -H "Content-Type: application/json" \
+     -d '{"day": 10, "month": 11, "year": 2023}'
+```
+
 ---
 
 ## UI (new terminal)
