@@ -56,35 +56,35 @@ services:
     ipc: host
     restart: unless-stopped
 
-  vllm-service:
-    image: opea/vllm-gaudi:latest
-    container_name: vllm-service
-    ports:
-      - "8080:8000"
-    volumes:
-      - ${HF_CACHE}:/root/.cache/huggingface/hub
-    privileged: true
-    environment:
-      no_proxy: ${no_proxy}
-      http_proxy: ${http_proxy}
-      https_proxy: ${https_proxy}
-      VLLM_SKIP_WARMUP: true
-      HABANA_VISIBLE_DEVICES: "5"
-      HF_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
-      VLLM_TORCH_PROFILER_DIR: "/mnt"
-    command: --model ${LLM_MODEL_ID} --host 0.0.0.0 --dtype bfloat16
-    healthcheck:
-      interval: 10s
-      retries: 50
-      start_period: 30s
-      test:
-      - CMD
-      - curl
-      - -f
-      - http://localhost:8000/v1/models
-    runtime: habana
-    cap_add:
-      - SYS_NICE
+  # vllm-service:
+  #   image: opea/vllm-gaudi:latest
+  #   container_name: vllm-service
+  #   ports:
+  #     - "8080:8000"
+  #   volumes:
+  #     - ${HF_CACHE}:/root/.cache/huggingface/hub
+  #   privileged: true
+  #   environment:
+  #     no_proxy: ${no_proxy}
+  #     http_proxy: ${http_proxy}
+  #     https_proxy: ${https_proxy}
+  #     VLLM_SKIP_WARMUP: true
+  #     HABANA_VISIBLE_DEVICES: "5"
+  #     HF_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
+  #     VLLM_TORCH_PROFILER_DIR: "/mnt"
+  #   command: --model ${LLM_MODEL_ID} --host 0.0.0.0 --dtype bfloat16
+  #   healthcheck:
+  #     interval: 10s
+  #     retries: 50
+  #     start_period: 30s
+  #     test:
+  #     - CMD
+  #     - curl
+  #     - -f
+  #     - http://localhost:8000/v1/models
+  #   runtime: habana
+  #   cap_add:
+  #     - SYS_NICE
 
   easy-circulars-webscraper:
     image: easy-circulars/webscraper:latest

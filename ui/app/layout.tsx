@@ -33,7 +33,6 @@ function Navbar() {
     { href: "/", icon: Home, label: "Home" },
     { href: "/bookmarks", icon: Bookmark, label: "Bookmarks" },
     { href: "/compare", icon: CompareArrows, label: "Compare Circulars" },
-    { href: "/visualize", icon: BubbleChart, label: "Visualize" },
   ];
 
   return (

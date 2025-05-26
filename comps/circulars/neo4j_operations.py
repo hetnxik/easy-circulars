@@ -112,3 +112,68 @@ async def handle_circular_get_versions(request: Request):
     except Exception as e:
         logger.exception("Unexpected error while fetching versions.")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+async def handle_circular_get_related_nodes(request: Request):
+    try:
+        circular_id = request.query_params.get("circular_id")
+        if not circular_id:
+            raise HTTPException(status_code=400, detail="Missing 'circular_id' in request")
+
+        if not neo4j_driver:
+            logger.error("Neo4j driver not available.")
+            raise HTTPException(status_code=500, detail="Database connection not available")
+
+        with neo4j_driver.session() as session:
+            result = session.run(
+                """
+                MATCH (c:Circular {_id: $circular_id})
+                OPTIONAL MATCH (c)-[r:REFERS]->(ref_node:Circular)
+                OPTIONAL MATCH (c)-[v:VERSION]->(ver_node:Circular)
+                RETURN c AS main_node, 
+                       collect(DISTINCT { node: ref_node, rel_type: type(r) }) AS refers_data,
+                       collect(DISTINCT { node: ver_node, rel_type: type(v) }) AS version_data
+                """,
+                circular_id=circular_id
+            )
+
+            record = result.single()
+            if not record:
+                raise HTTPException(status_code=404, detail="Circular not found")
+
+            main_node = record["main_node"]
+            refers_data = record["refers_data"]
+            version_data = record["version_data"]
+
+            main_node_data = {
+                "circular_id": main_node.get("_id"),
+                "title": main_node.get("title"),
+                "date": main_node.get("date").to_native().strftime("%Y-%m-%d") if main_node.get("date") else None,
+                "path": main_node.get("path"),
+            }
+
+            def build_nodes_list(data):
+                result = []
+                for item in data:
+                    node = item["node"]
+                    if node is None:
+                        continue
+                    result.append({
+                        "circular_id": node.get("_id"),
+                        "title": node.get("title"),
+                        "date": node.get("date").to_native().strftime("%Y-%m-%d") if node.get("date") else None,
+                        "path": node.get("path"),
+                        "relationship": item["rel_type"]
+                    })
+                return result
+
+            return {
+                "main_node": main_node_data,
+                "refers_nodes": build_nodes_list(refers_data),
+                "version_nodes": build_nodes_list(version_data)
+            }
+
+    except HTTPException as http_exc:
+        raise http_exc
+    except Exception as e:
+        logger.exception("Unexpected error while fetching related nodes.")
+        raise HTTPException(status_code=500, detail="Internal server error")

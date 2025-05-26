@@ -12,6 +12,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import CHAT_QNA_URL from "@/lib/constants";
 import { usePageTitle } from "../../contexts/PageTitleContext";
+import Collapse from '@mui/material/Collapse';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import CircularVisualization from "@/components/ui/circularVisualization";
 
 interface Circular {
   circular_id: string;
@@ -20,7 +23,6 @@ interface Circular {
   date: string;
   url: string;
   bookmark: boolean;
-  references: string[];
 }
 
 export default function KeywordTagSearchPage() {
@@ -28,6 +30,7 @@ export default function KeywordTagSearchPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [circulars, setCirculars] = useState<Circular[]>([]);
+  const [showVisualization, setShowVisualization] = useState<{ [id: string]: boolean }>({});
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
@@ -60,6 +63,13 @@ export default function KeywordTagSearchPage() {
   const sortedTags = Object.entries(tagCountMap)
     .sort((a, b) => b[1] - a[1])
     .map(([tag]) => tag);
+
+  const toggleVisualization = (id: string) => {
+    setShowVisualization((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
 
   const handleCircularClick = (id: string) => {
     router.push(`/circulars/${encodeURIComponent(id)}?from=keyword-tag`);
@@ -127,7 +137,7 @@ export default function KeywordTagSearchPage() {
       <div className="space-y-4">
         {filteredCirculars.map((circular) => (
           <Card key={circular.circular_id} className="cursor-pointer" onClick={() => handleCircularClick(circular.circular_id)}>
-            <CardHeader className="pb-2">
+            <CardHeader className="px-4 pb-2">
               <CardTitle className="text-foreground">{circular.title}</CardTitle>
             </CardHeader>
             <CardContent>
@@ -150,6 +160,21 @@ export default function KeywordTagSearchPage() {
                 ))}
               </div>
             </CardContent>
+            <div className="px-4 pb-4">
+              <div className={`flex items-center cursor-pointer text-sm ${showVisualization[circular.circular_id] ? "mb-2" : ""}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleVisualization(circular.circular_id);
+                  }}>
+                <span className="flex items-center cursor-pointer text-sm text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 px-1 py-0.5 rounded transition">
+                  <VisibilityIcon className="mr-1" fontSize="small" />
+                  {showVisualization[circular.circular_id] ? "Hide Relationships" : "Visualize Relationships"}
+                </span>
+              </div>
+              <Collapse in={showVisualization[circular.circular_id]} timeout={300} unmountOnExit>
+                <CircularVisualization source={circular} />
+              </Collapse>
+            </div>
           </Card>
         ))}
       </div>
