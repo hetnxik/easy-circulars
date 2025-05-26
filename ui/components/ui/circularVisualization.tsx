@@ -17,7 +17,6 @@ import {
   ArrowRight, GitMerge, Calendar, FileText,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Autocomplete, TextField } from "@mui/material";
 import axios from "axios";
 import CHAT_QNA_URL from "@/lib/constants";
 
@@ -69,7 +68,10 @@ const CircularNodeCard = memo(({ circular }: { circular: Circular }) => (
 CircularNodeCard.displayName = "CircularNodeCard";
 
 // Custom hook for circular graph management
-const useCircularGraph = (currentSourceId: string, setCircularOptions: React.Dispatch<React.SetStateAction<Circular[]>>) => {
+const useCircularGraph = (
+  currentSourceId: string,
+  setCircularOptions: React.Dispatch<React.SetStateAction<Circular[]>>,
+) => {
   const [graphState, setGraphState] = useState<GraphState>({
     allNodes: [],
     allEdges: [],
@@ -253,9 +255,9 @@ const useCircularGraph = (currentSourceId: string, setCircularOptions: React.Dis
           ...(graphData.version_nodes || []),
         ];
 
-        setCircularOptions(prevOptions => {
-          const existingIds = new Set(prevOptions.map(c => c.circular_id));
-          const filteredNew = allCirculars.filter(c => !existingIds.has(c.circular_id));
+        setCircularOptions((prevOptions) => {
+          const existingIds = new Set(prevOptions.map((c) => c.circular_id));
+          const filteredNew = allCirculars.filter((c) => !existingIds.has(c.circular_id));
           return [...prevOptions, ...filteredNew];
         });
 
@@ -361,17 +363,6 @@ export default function CircularVisualization({ source }: { source: Circular }) 
     [currentSourceId, history, historyIndex],
   );
 
-  const handleSourceChange = useCallback(
-    (newValue: Circular | null) => {
-      if (newValue && newValue.circular_id !== currentSourceId) {
-        setCurrentSourceId(newValue.circular_id);
-        setHistory([newValue.circular_id]);
-        setHistoryIndex(0);
-      }
-    },
-    [currentSourceId],
-  );
-
   const handleClickInside = (event: React.MouseEvent) => {
     event.stopPropagation();
   };
@@ -391,7 +382,7 @@ export default function CircularVisualization({ source }: { source: Circular }) 
   }
 
   return (
-    <div onClick={handleClickInside} style={{ width: '100%', height: '100%' }}>
+    <div onClick={handleClickInside} style={{ width: "100%", height: "100%" }}>
       <div className="w-full h-[530px] border rounded-lg relative">
         {loading && (
           <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-20">

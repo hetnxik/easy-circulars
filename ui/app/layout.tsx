@@ -6,7 +6,6 @@ import {
   Search,
   Bookmark,
   GitCompareArrowsIcon as CompareArrows,
-  BarChartIcon as BubbleChart,
   Home,
 } from "lucide-react";
 import { usePathname } from "next/navigation";

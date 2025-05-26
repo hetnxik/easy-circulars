@@ -11,10 +11,10 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import CHAT_QNA_URL from "@/lib/constants";
-import { usePageTitle } from "../../contexts/PageTitleContext";
-import Collapse from '@mui/material/Collapse';
-import VisibilityIcon from '@mui/icons-material/Visibility';
+import Collapse from "@mui/material/Collapse";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import CircularVisualization from "@/components/ui/circularVisualization";
+import { usePageTitle } from "../../contexts/PageTitleContext";
 
 interface Circular {
   circular_id: string;
