@@ -22,7 +22,7 @@ spec:
         io.kompose.service: easy-circulars-webscraper-deployment
     spec:
       nodeSelector:
-        kubernetes.io/hostname: g2-r1-2
+        kubernetes.io/hostname: g2-wyn02
       containers:
         - env:
             - name: SERVER_HOST_IP
@@ -34,7 +34,7 @@ spec:
             - name: DATAPREP_PORT
               value: "5012"
             - name: LLM_SERVER_HOST_IP
-              value: g2-r1-2.iind.intel.com
+              value: g2-wyn02.iind.intel.com
             - name: LLM_SERVER_PORT
               value: "31025"
             - name: LLM_MODEL_ID
@@ -56,7 +56,7 @@ spec:
             - name: https_proxy
               value: http://proxy-dmz.intel.com:912
             - name: no_proxy
-              value: 127.0.0.1,localhost,.intel.com,easy-circulars-dataprep-deployment,easy-circulars-backend-deployment,g2-r1-2.iind.intel.com
+              value: 127.0.0.1,localhost,.intel.com,easy-circulars-dataprep-deployment,easy-circulars-backend-deployment,g2-wyn02.iind.intel.com
           image: navchetna/easy-circulars-webscraper:latest
           name: easy-circulars-webscraper-container
           ports:
@@ -68,7 +68,7 @@ spec:
       restartPolicy: Always
       volumes:
         - hostPath:
-            path: /mnt/data/workspace/smg/kubernetes_files/easy-circulars/ui/public/pdfs
+            path: /home/intel/easy-circulars/ui/public/pdfs
           name: pdfs
 ---
 apiVersion: v1
