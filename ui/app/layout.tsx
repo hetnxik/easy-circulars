@@ -6,7 +6,6 @@ import {
   Search,
   Bookmark,
   GitCompareArrowsIcon as CompareArrows,
-  BarChartIcon as BubbleChart,
   Home,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
@@ -33,7 +32,6 @@ function Navbar() {
     { href: "/", icon: Home, label: "Home" },
     { href: "/bookmarks", icon: Bookmark, label: "Bookmarks" },
     { href: "/compare", icon: CompareArrows, label: "Compare Circulars" },
-    { href: "/visualize", icon: BubbleChart, label: "Visualize" },
     { href: "/login", icon: Home, label: "Login"},
   ];
 

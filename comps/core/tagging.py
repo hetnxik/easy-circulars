@@ -1,39 +1,17 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
 import logging
-import motor.motor_asyncio
-import os
 import json
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from dotenv import load_dotenv 
-import uvicorn
-
-
-load_dotenv()
-app = FastAPI()
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-
-MONGO_URI = os.getenv("MONGO_URI")
-if not MONGO_URI:
-    raise ValueError("MONGO_URI is not set in the environment!")
-
-DB_NAME = "tagging_db"
-COLLECTION_NAME = "pdf_tags"
-
-client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_URI)
-db = client[DB_NAME]
-collection = db[COLLECTION_NAME]
-
 
 class TagGenerator:
     def __init__(self, text: str):
         self.text = text
         self.tags = []
 
-
-    def generate_tags(self, text, tokenizer, model, device, max_new_tokens=150, num_tags=10):
+    def generate_tags(self, text, tokenizer, model, device, max_new_tokens=150, num_tags=5):
         logger.info("Generating tags from text input")
 
         prompt = (
@@ -81,7 +59,6 @@ class TagGenerator:
         except json.JSONDecodeError as e:
             logger.error(f"JSON Error: {e}\nOutput: {output}")
             return []
-    
 
 def load_model():
     logger.info("Loading model and tokenizer")
@@ -99,56 +76,26 @@ def load_model():
     
     return model, tokenizer, device  
 
+model, tokenizer, device = load_model()
 
-@app.post("/generate-tags")
-async def generate_tags_from_file(file: UploadFile = File(..., description="Upload a processed text file")):
-    try:
-        logger.info(f"Received file: {file.filename}")
-        content = await file.read()
-        text = content.decode("utf-8")
-        
+def generate_tags_from_file(text: str):
+    try:       
         if text == "":              
-            logger.warning("Uploaded file is empty.")
-            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+            logger.warning("Text is empty.")
         if not text.strip():        
-            logger.warning("Uploaded file contains only whitespace.")
-            raise HTTPException(status_code=400, detail="Failed to generate tags.")
+            logger.warning("Text contains only whitespace.")
 
         try:
             tag_object = TagGenerator(text)
-            tag_object.generate_tags(text, tokenizer, model, device, max_new_tokens=150, num_tags=10)
+            tag_object.generate_tags(text, tokenizer, model, device, max_new_tokens=150, num_tags=5)
             logger.info(f"Generated tags: {tag_object.tags}")
         except Exception as gen_error:
             logger.error(f"Tag generation failed: {gen_error}")
-            raise HTTPException(status_code=400, detail="Failed to generate tags.")
 
         if not tag_object.tags:
             logger.warning("Tag generation returned an empty list.")
-            raise HTTPException(status_code=400, detail="Failed to generate tags.")
+        logger.info(f"Tags saved to database")
 
-        file_path = os.path.abspath(file.filename)
-        
-        await collection.update_one(
-            {"_id": file_path},
-            {"$set": {"tags": tag_object.tags}},
-            upsert=True
-        )
-        logger.info(f"Tags saved to database for file: {file_path}")
-
-        return {"tags": tag_object.tags}
-    except HTTPException:
-        raise
+        return tag_object.tags
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-
-
-@app.get("/status/")
-def status():
-    return {"status": "running"}
-
-
-if __name__ == "__main__":
-    model, tokenizer, device = load_model()
-    logger.info("Starting FastAPI server...")
-    uvicorn.run(app, host="0.0.0.0", port=8500)

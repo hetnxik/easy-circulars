@@ -46,6 +46,28 @@ def handle_circular_update(circularUpdate: CircularUpdateData):
     except Exception as e:
         raise Exception(e)
     
+def get_active_months_for_year(year: int) -> list[int]:
+    try:
+        start_date = datetime(year, 1, 1)
+        end_date = datetime(year + 1, 1, 1)
+
+        cursor = collection.find({
+            "date": {
+                "$gte": start_date,
+                "$lt": end_date
+            }
+        })
+
+        months = set()
+        for document in cursor:
+            if "date" in document and isinstance(document["date"], datetime):
+                months.add(document["date"].month)
+
+        return sorted(list(months))
+    except Exception as e:
+        print(f"Error getting months with circulars for year {year}:", e)
+        raise Exception(e)
+    
 def get_bookmarked_circulars() -> list[dict]:
     try:
         circulars: list = []
@@ -63,27 +85,14 @@ def get_bookmarked_circulars() -> list[dict]:
     
 def get_circular_by_id(circular_id) -> dict | None:
     try:
-
         main_circular = collection.find_one({"_id": circular_id})
         if not main_circular:
             return None
-
-        references_ids = main_circular.get("references", [])
-
-        referenced_circulars = []
-        if references_ids:
-            object_ids = [ref_id for ref_id in references_ids]
-            cursor = collection.find({"_id": {"$in": object_ids}})
-            referenced_circulars = cursor.to_list(length=len(references_ids))
-
-            for ref in referenced_circulars:
-                ref["circular_id"] = str(ref["_id"])
 
         main_circular["circular_id"] = str(main_circular["_id"])
         
         return {
             "circular": main_circular,
-            "references": referenced_circulars
         }
     except Exception as e:
         print(f"Error fetching circular: {e}")
@@ -91,11 +100,21 @@ def get_circular_by_id(circular_id) -> dict | None:
     
 def get_circulars_by_month_and_year(month, year) -> list[dict]:
     try:
+        if not (1 <= month <= 12):
+            raise ValueError("Month must be between 1 and 12.")
+
         circulars: list = []
+
+        start_date = datetime(year, month, 1)
+        if month == 12:
+            end_date = datetime(year + 1, 1, 1)
+        else:
+            end_date = datetime(year, month + 1, 1)
+
         cursor = collection.find({
             "date": {
-                "$gte": datetime(year, month, 1),
-                "$lt": datetime(year, month + 1, 1)
+                "$gte": start_date,
+                "$lt": end_date
             }
         })
 
@@ -112,7 +131,7 @@ def get_circulars_by_month_and_year(month, year) -> list[dict]:
 def get_all_circulars() -> list[dict]:
     try:
         circulars: list = []
-        cursor = collection.find()
+        cursor = collection.find().sort("date", -1)
 
         for document in cursor:
             document["circular_id"] = str(document["_id"])
@@ -128,7 +147,7 @@ def handle_circular_get(request: Request):
     try:
         circular_id = request.query_params.get("circular_id")
         bookmark = request.query_params.get("bookmark", "false").lower() == "true"
-
+        only_months = request.query_params.get("only_months", "false").lower() == "true"
         year_param = request.query_params.get("year")
         month_param = request.query_params.get("month")
         year = int(year_param) if year_param is not None else None
@@ -136,6 +155,8 @@ def handle_circular_get(request: Request):
         
         if bookmark:
             response = get_bookmarked_circulars()
+        elif year and only_months:
+            response = get_active_months_for_year(year)
         elif circular_id:
             response = get_circular_by_id(circular_id)
         elif year and month:

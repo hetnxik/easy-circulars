@@ -28,9 +28,9 @@ export default function HomePage() {
     {
       title: "Search Circulars",
       icon: Search,
-      href: "/search/keyword-tag",
+      href: "/search/year-month",
       description:
-        "Quickly find and access relevant RBI circulars. Use filters and keywords to narrow your search results.",
+        "Search RBI circulars by selecting the year and month to easily find circulars issued during a specific time period.",
     },
     {
       title: "Bookmarks",
@@ -49,9 +49,9 @@ export default function HomePage() {
     {
       title: "Visualize Relationships",
       icon: BubbleChart,
-      href: "/visualize",
+      href: "/search/keyword-tag",
       description:
-        "Explore connections between various RBI circulars and policies. Gain insights through interactive visualizations.",
+        "Explore connections between various RBI circulars. Gain insights through interactive visualizations.",
     },
   ];
 

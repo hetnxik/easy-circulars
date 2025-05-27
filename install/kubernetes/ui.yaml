@@ -1,8 +1,8 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: easy-circulars
----
+# apiVersion: v1
+# kind: Namespace
+# metadata:
+#   name: easy-circulars
+# ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,7 +25,7 @@ spec:
         io.kompose.service: easy-circulars-ui-deployment
     spec:
       nodeSelector:
-        kubernetes.io/hostname: g2-r1-2
+        kubernetes.io/hostname: g2-wyn02
       containers:
         - image: navchetna/easy-circulars-ui:latest
           name: easy-circulars-ui-container
@@ -38,7 +38,7 @@ spec:
       restartPolicy: Always
       volumes:
         - hostPath:
-            path: /mnt/data/workspace/smg/kubernetes_files/easy-circulars/pdfs
+            path: /home/intel/easy-circulars/ui/public/pdfs
           name: pdfs
 ---
 apiVersion: v1

@@ -11,6 +11,9 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import CHAT_QNA_URL from "@/lib/constants";
+import Collapse from "@mui/material/Collapse";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import CircularVisualization from "@/components/ui/circularVisualization";
 import { usePageTitle } from "../../contexts/PageTitleContext";
 
 interface Circular {
@@ -20,7 +23,6 @@ interface Circular {
   date: string;
   url: string;
   bookmark: boolean;
-  references: string[];
 }
 
 export default function KeywordTagSearchPage() {
@@ -28,6 +30,7 @@ export default function KeywordTagSearchPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [circulars, setCirculars] = useState<Circular[]>([]);
+  const [showVisualization, setShowVisualization] = useState<{ [id: string]: boolean }>({});
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
@@ -49,7 +52,24 @@ export default function KeywordTagSearchPage() {
       && (selectedTags.length === 0 || selectedTags.some((tag) => circular.tags.includes(tag))),
   );
 
-  const allTags = Array.from(new Set(circulars.flatMap((c) => c.tags)));
+  const tagCountMap: Record<string, number> = {};
+
+  circulars.forEach((c) => {
+    c.tags.forEach((tag: string) => {
+      tagCountMap[tag] = (tagCountMap[tag] || 0) + 1;
+    });
+  });
+
+  const sortedTags = Object.entries(tagCountMap)
+    .sort((a, b) => b[1] - a[1])
+    .map(([tag]) => tag);
+
+  const toggleVisualization = (id: string) => {
+    setShowVisualization((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
 
   const handleCircularClick = (id: string) => {
     router.push(`/circulars/${encodeURIComponent(id)}?from=keyword-tag`);
@@ -74,27 +94,50 @@ export default function KeywordTagSearchPage() {
           {error}
         </p>
       )}
-      <div className="flex flex-wrap gap-2">
-        {allTags.map((tag) => (
-          <Badge
-            key={tag}
-            variant={selectedTags.includes(tag) ? "default" : "outline"}
-            className={`cursor-pointer ${
-              selectedTags.includes(tag) ? "bg-emerald-green text-white" : "text-emerald-green"
-            }`}
-            onClick={() => setSelectedTags((prev) => (prev.includes(tag)
-              ? prev.filter((t) => t !== tag)
-              : [...prev, tag]))
-            }
-          >
-            {tag}
-          </Badge>
-        ))}
+
+      <div className="flex flex-col bg-white border rounded p-2">
+        <div className="text-xs text-gray-500 mb-2">
+          <span className="mr-1">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline-block">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+              <line x1="7" y1="7" x2="7.01" y2="7"></line>
+            </svg>
+          </span>
+          Click on tags to filter content
+        </div>
+        <div className="flex flex-wrap gap-2 max-h-20 overflow-y-auto">
+          {sortedTags.length > 0 ? (
+            sortedTags.map((tag) => (
+              <Badge
+                key={tag}
+                variant={selectedTags.includes(tag) ? "default" : "outline"}
+                className={`cursor-pointer inline-flex items-center whitespace-nowrap ${
+                  selectedTags.includes(tag)
+                    ? "bg-emerald-green text-white"
+                    : "text-emerald-green"
+                }`}
+                onClick={() => {
+                  setSelectedTags((prev) => {
+                    if (prev.includes(tag)) {
+                      return prev.filter((t) => t !== tag);
+                    }
+                    return [...prev, tag];
+                  });
+                }}
+              >
+                {tag}
+                <span className={`ml-1 text-xs ${selectedTags.includes(tag) ? "text-gray-100" : "text-gray-400"}`}>({tagCountMap[tag]})</span>
+              </Badge>
+            ))
+          ) : (
+            <div className="text-gray-400 italic text-sm py-1">No tags available</div>
+          )}
+        </div>
       </div>
       <div className="space-y-4">
         {filteredCirculars.map((circular) => (
           <Card key={circular.circular_id} className="cursor-pointer" onClick={() => handleCircularClick(circular.circular_id)}>
-            <CardHeader>
+            <CardHeader className="px-4 pb-2">
               <CardTitle className="text-foreground">{circular.title}</CardTitle>
             </CardHeader>
             <CardContent>
@@ -109,14 +152,29 @@ export default function KeywordTagSearchPage() {
                 {circular.tags.map((tag) => (
                   <Badge
                     key={tag}
-                    variant="secondary"
-                    className="bg-emerald-green text-white hover:bg-emerald-green hover:text-white"
+                    variant="outline"
+                    className="bg-white text-emerald-green hover:bg-emerald-green hover:text-white"
                   >
                     {tag}
                   </Badge>
                 ))}
               </div>
             </CardContent>
+            <div className="px-4 pb-4">
+              <div className={`flex items-center cursor-pointer text-sm ${showVisualization[circular.circular_id] ? "mb-2" : ""}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleVisualization(circular.circular_id);
+                  }}>
+                <span className="flex items-center cursor-pointer text-sm text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 px-1 py-0.5 rounded transition">
+                  <VisibilityIcon className="mr-1" fontSize="small" />
+                  {showVisualization[circular.circular_id] ? "Hide Relationships" : "Visualize Relationships"}
+                </span>
+              </div>
+              <Collapse in={showVisualization[circular.circular_id]} timeout={300} unmountOnExit>
+                <CircularVisualization source={circular} />
+              </Collapse>
+            </div>
           </Card>
         ))}
       </div>
