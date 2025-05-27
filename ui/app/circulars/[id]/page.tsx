@@ -16,6 +16,7 @@ import {
   Tabs, TabsContent, TabsList, TabsTrigger,
 } from "@/components/ui/tabs";
 import CHAT_QNA_URL from "@/lib/constants";
+import pageAuth from "@/components/hoc/pageAuth";
 
 interface Message {
   question: string;
@@ -43,7 +44,7 @@ interface Circular {
   pdf_url: string;
 }
 
-export default function CircularPage() {
+function CircularPage() {
   const params = useParams();
   const router = useRouter();
   const id = decodeURIComponent(params.id as string);
@@ -311,3 +312,5 @@ export default function CircularPage() {
     </div>
   );
 }
+
+export default pageAuth(CircularPage);

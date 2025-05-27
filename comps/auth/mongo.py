@@ -14,15 +14,26 @@ class User:
 
     def register(self):
         if collection.find_one({"username": self.username}) is None:
-            collection.insert_one({"_id": self._id, "username": self.username, "password": self.password})
-            return "Registered"
+            collection.insert_one({
+                "_id": self._id,
+                "username": self.username,
+                "password": self.password
+            })
+            return {"status": "success", "user_id": self._id}
+        return {"status": "error", "msg": "Username already exists"}
 
-        return "Already registered"
+    def to_dict(self):
+        return {"_id": self._id, "username": self.username, "password": self.password}
+
+
+def get_user_id(username):
+    u = collection.find_one({"username": username})
+    return u["_id"] if u else None
 
 def validate(username, password):
-    user = collection.find_one({"username": username})
-    if user is not None:
-        return pwd_context.verify(password, user["password"])
+    username = collection.find_one({"username": username})
+    if username is not None:
+        return pwd_context.verify(password, username["password"])
     return False
 
 if __name__ == "__main__":

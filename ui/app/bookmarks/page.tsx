@@ -7,6 +7,7 @@ import axios from "axios";
 import { Button } from "@/components/ui/button";
 import CHAT_QNA_URL from "@/lib/constants";
 import { usePageTitle } from "../contexts/PageTitleContext";
+import pageAuth from "@/components/hoc/pageAuth";
 
 interface Circular {
   circular_id: string;
@@ -18,7 +19,7 @@ interface Circular {
   references: string[];
 }
 
-export default function BookmarksPage() {
+function BookmarksPage() {
   const { setPageTitle } = usePageTitle();
   const [circulars, setCirculars] = useState<Circular[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -86,3 +87,5 @@ export default function BookmarksPage() {
     </div>
   );
 }
+
+export default pageAuth(BookmarksPage);
