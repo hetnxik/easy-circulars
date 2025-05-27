@@ -12,6 +12,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import CHAT_QNA_URL from "@/lib/constants";
 import { usePageTitle } from "../../contexts/PageTitleContext";
+import pageAuth from "@/components/hoc/pageAuth";
+
 
 interface Circular {
   circular_id: string;
@@ -23,13 +25,14 @@ interface Circular {
   references: string[];
 }
 
-export default function KeywordTagSearchPage() {
+function KeywordTagSearchPage() {
   const { setPageTitle } = usePageTitle();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [circulars, setCirculars] = useState<Circular[]>([]);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+
 
   useEffect(() => {
     setPageTitle("Search Circulars");
@@ -123,3 +126,5 @@ export default function KeywordTagSearchPage() {
     </div>
   );
 }
+
+export default pageAuth(KeywordTagSearchPage);

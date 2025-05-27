@@ -27,3 +27,5 @@ motor
 redis
 pymongo
 groq
+passlib
+python-jose

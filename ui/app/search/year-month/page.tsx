@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import CHAT_QNA_URL from "@/lib/constants";
 import { usePageTitle } from "../../contexts/PageTitleContext";
+import pageAuth from "@/components/hoc/pageAuth";
 
 interface Circular {
   circular_id: string;
@@ -13,7 +14,7 @@ interface Circular {
   date: string;
 }
 
-export default function YearMonthSearch() {
+function YearMonthSearch() {
   const { setPageTitle } = usePageTitle();
 
   useEffect(() => {
@@ -26,6 +27,18 @@ export default function YearMonthSearch() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const [isAuthChecked, setIsAuthChecked] = useState(false);
+
+  useEffect(() => {
+    const key = localStorage.getItem('authKey'); // use your actual key
+    if (!key) {
+      router.replace('/login');
+    } else {
+      setIsAuthChecked(true);
+    }
+  }, [router]);
+
+  if (!isAuthChecked) return null; // or a loader/spinner
 
   const years = Array.from({ length: 2025 - 1997 + 1 }, (_, i) => 2025 - i);
 
@@ -145,3 +158,5 @@ export default function YearMonthSearch() {
     </div>
   );
 }
+
+export default pageAuth(YearMonthSearch);
