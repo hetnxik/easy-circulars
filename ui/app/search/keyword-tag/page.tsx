@@ -15,6 +15,8 @@ import Collapse from "@mui/material/Collapse";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import CircularVisualization from "@/components/ui/circularVisualization";
 import { usePageTitle } from "../../contexts/PageTitleContext";
+import pageAuth from "@/components/hoc/pageAuth";
+
 
 interface Circular {
   circular_id: string;
@@ -25,7 +27,7 @@ interface Circular {
   bookmark: boolean;
 }
 
-export default function KeywordTagSearchPage() {
+function KeywordTagSearchPage() {
   const { setPageTitle } = usePageTitle();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -33,6 +35,7 @@ export default function KeywordTagSearchPage() {
   const [showVisualization, setShowVisualization] = useState<{ [id: string]: boolean }>({});
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+
 
   useEffect(() => {
     setPageTitle("Search Circulars");
@@ -181,3 +184,5 @@ export default function KeywordTagSearchPage() {
     </div>
   );
 }
+
+export default pageAuth(KeywordTagSearchPage);

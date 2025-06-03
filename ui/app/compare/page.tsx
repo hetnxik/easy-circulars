@@ -7,6 +7,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { usePageTitle } from "../contexts/PageTitleContext";
+import pageAuth from "@/components/hoc/pageAuth";
+
 
 // Mock data for circulars
 const mockCirculars = [
@@ -44,11 +46,24 @@ type CircularGroup = {
   versions: typeof mockCirculars
 }
 
-export default function ComparePage() {
+function ComparePage() {
   const { setPageTitle } = usePageTitle();
   const [selectedGroup, setSelectedGroup] = useState<string>("");
   const [oldCircular, setOldCircular] = useState<string>("");
   const [newCircular, setNewCircular] = useState<string>("");
+  const router = useRouter();
+  const [isAuthChecked, setIsAuthChecked] = useState(false);
+
+  useEffect(() => {
+    const key = localStorage.getItem('authKey'); // use your actual key
+    if (!key) {
+      router.replace('/login');
+    } else {
+      setIsAuthChecked(true);
+    }
+  }, [router]);
+
+  if (!isAuthChecked) return null; // or a loader/spinner
 
   useEffect(() => {
     setPageTitle("Compare Circulars");
@@ -164,3 +179,5 @@ export default function ComparePage() {
     </div>
   );
 }
+
+export default pageAuth(ComparePage);
