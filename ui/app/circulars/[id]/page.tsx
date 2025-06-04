@@ -41,7 +41,6 @@ interface Circular {
   date: string;
   bookmark: boolean;
   path: string;
-  conversation_id: string;
   pdf_url: string;
 }
 
@@ -63,53 +62,40 @@ function CircularPage() {
   const [openedReferenceCirculars, setOpenedReferenceCirculars] = useState<Circular[]>([]);
   const [openedVersionCirculars, setOpenedVersionCirculars] = useState<Circular[]>([]);
 
-  const createNewConversation = async (): Promise<string | null> => {
+  const createNewConversation = async (circularId: string) => {
     try {
-      const response = await axios.post(`${CHAT_QNA_URL}/api/conversations/new`, {
+      await axios.post(`${CHAT_QNA_URL}/api/conversations/new`, {
         db_name: "easy_circulars",
+        circular_id: circularId,
+        user_id: localStorage.getItem("token"),
       }, {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
         },
       });
-
-      const { data } = response;
-      return data.conversation_id || null;
     } catch (err) {
       setError(`Error creating new conversation: ${err}`);
-      return null;
     }
   };
 
-  const updateCircularConversation = async (circularId: string, conversationId: string) => {
+  const fetchConversation = async (circularId: string): Promise<string | null> => {
     try {
-      await axios.patch(
-        `${CHAT_QNA_URL}/api/circulars`,
-        {
-          circular_id: circularId,
-          conversation_id: conversationId,
-        },
-        {
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          },
-        },
-      );
-    } catch (err) {
-      setError(`Error updating circular: ${err}`);
-    }
-  };
-
-  const fetchConversation = async (conversationId: string) => {
-    try {
-      const response = await axios.get(`${CHAT_QNA_URL}/api/conversations/${conversationId}`, {
-        params: { db_name: "easy_circulars" },
+      const response = await axios.get(`${CHAT_QNA_URL}/api/conversations/history`, {
+        params: { db_name: "easy_circulars", user_id: localStorage.getItem("token"), circular_id: circularId },
       });
-      setConversation(response.data);
-    } catch (err) {
-      setError(`Error fetching conversation: ${err}`);
+
+      const conversation = response.data;
+      setConversation(conversation);
+      return conversation?.conversation_id || null;
+
+    } catch (err: any) {
+      if (axios.isAxiosError(err) && err.response?.status === 404) {
+        return null;
+      }
+
+      setError(`Error fetching conversation: ${err.message}`);
+      return null;
     }
   };
 
@@ -127,19 +113,29 @@ function CircularPage() {
       );
 
       const { data } = response;
-      setCircular(data.circular);
+      const circular = data.circular;
 
-      let conversationId = data.circular.conversation_id;
+      const bookmarkRes = await axios.get(`${CHAT_QNA_URL}/api/bookmarks`, {
+        params: {
+          user_id: localStorage.getItem("token"),
+          circular_id: circularId,
+        },
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+      });
+
+      circular.bookmark = bookmarkRes.data.bookmarked ?? false;
+
+      setCircular(circular);
+
+      let conversationId = await fetchConversation(circularId);
 
       if (!conversationId) {
-        conversationId = await createNewConversation();
-        if (conversationId) {
-          await updateCircularConversation(id, conversationId);
-        }
-      }
-
-      if (conversationId) {
-        await fetchConversation(conversationId);
+        console.log("aaaa")
+        await createNewConversation(circularId);
+        await fetchConversation(circularId);
       }
     } catch (err) {
       setError(`Error fetching circular: ${err}`);
@@ -211,11 +207,11 @@ function CircularPage() {
     if (circular) {
       const updatedCircular = { ...circular, bookmark: !circular.bookmark };
 
-      await axios.patch(
-        `${CHAT_QNA_URL}/api/circulars`,
+      await axios.post(
+        `${CHAT_QNA_URL}/api/bookmarks`,
         {
+          user_id: localStorage.getItem("token"),
           circular_id: circular.circular_id,
-          bookmark: updatedCircular.bookmark,
         },
         {
           headers: {
@@ -235,7 +231,7 @@ function CircularPage() {
       try {
         const response = await axios.post(
           `${CHAT_QNA_URL}/api/conversations/${conversation.conversation_id}`,
-          { db_name: "easy_circulars", question: input, circular_id: id },
+          { db_name: "easy_circulars", question: input, user_id: localStorage.getItem("token"), circular_id: id },
           { headers: { "Content-Type": "application/json" } },
         );
 

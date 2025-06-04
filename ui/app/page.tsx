@@ -1,10 +1,10 @@
 "use client";
 
 import {
-  Search, Bookmark, GitCompareArrowsIcon as CompareArrows, BarChartIcon as BubbleChart, HomeIcon,
+  Search, Bookmark, GitCompareArrowsIcon as CompareArrows, BarChartIcon as BubbleChart
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card, CardContent, CardHeader, CardTitle,
@@ -13,18 +13,26 @@ import { usePageTitle } from "./contexts/PageTitleContext";
 
 export default function HomePage() {
   const { setPageTitle } = usePageTitle();
+  const [name, setName] = useState<string | null>(null);
+
+  useEffect(() => {
+    setName(localStorage.getItem("name"));
+    const onAuthChange = () => {
+      setName(localStorage.getItem("name"));
+    };
+
+    window.addEventListener("authChange", onAuthChange);
+
+    return () => {
+      window.removeEventListener("authChange", onAuthChange);
+    };
+  }, []);
 
   useEffect(() => {
     setPageTitle("Home");
   }, [setPageTitle]);
 
   const features = [
-    {
-      title: "Login",
-      icon: HomeIcon,
-      href: "/login",
-      description: "Login",
-    },
     {
       title: "Search Circulars",
       icon: Search,
@@ -58,7 +66,7 @@ export default function HomePage() {
   return (
     <div className="space-y-8 animate-fade-in">
       <div className="text-center">
-        <h2 className="text-4xl font-bold mb-4 text-header">Welcome to RBI Circular Assistant</h2>
+        <h2 className="text-4xl font-bold mb-4 text-header">Welcome to RBI Circular Assistant{ name ? `, ${name}` : '' }</h2>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
           Use our advanced tools to efficiently navigate and understand RBI circulars.
         </p>

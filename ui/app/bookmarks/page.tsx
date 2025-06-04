@@ -28,8 +28,8 @@ function BookmarksPage() {
   useEffect(() => {
     setPageTitle("Bookmarks");
     axios
-      .get<Circular[]>(`${CHAT_QNA_URL}/api/circulars`, {
-        params: { bookmark: true },
+      .get<Circular[]>(`${CHAT_QNA_URL}/api/bookmarks`, {
+        params: { user_id: localStorage.getItem("token") },
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
@@ -41,19 +41,16 @@ function BookmarksPage() {
 
   const removeBookmark = async (id: string) => {
     const updatedCirculars = circulars.filter((circular) => circular.circular_id !== id);
-    await axios.patch(
-      `${CHAT_QNA_URL}/api/circulars`,
-      {
+    await axios.delete(`${CHAT_QNA_URL}/api/bookmarks`, {
+      params: {
+        user_id: localStorage.getItem("token"),
         circular_id: id,
-        bookmark: false,
       },
-      {
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
       },
-    );
+    });
     setCirculars(updatedCirculars);
   };
 

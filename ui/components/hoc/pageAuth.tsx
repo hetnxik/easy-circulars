@@ -10,7 +10,7 @@ const pageAuth = (WrappedComponent: React.ComponentType<any>) => {
     const [isVerified, setIsVerified] = useState(false);
 
     useEffect(() => {
-      const key = localStorage.getItem('authKey');
+      const key = localStorage.getItem('token');
       if (!key) {
         router.replace('/login');
       } else {

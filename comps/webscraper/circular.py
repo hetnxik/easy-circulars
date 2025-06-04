@@ -25,9 +25,7 @@ class Circular:
         self.title: str | None = None
         self.tags: List[str] = []
         self.date: datetime | None = None
-        self.bookmark: str | None = None
         self.path: str = "ui/public/pdfs"
-        self.conversation_id: str | None = None
         self.references: str | None = None
         self.pdf_url: str | None = None
 
@@ -43,9 +41,7 @@ class Circular:
                 f"title = {self.title}\n"
                 f"tags = {self.tags}\n"
                 f"date = {self.date}\n"
-                f"bookmark = {self.bookmark}\n"
                 f"path = {self.path}\n"
-                f"conversation_id = {self.conversation_id}\n"
                 f"references = {self.references}\n"
                 f"pdf_url = {self.pdf_url}")
 

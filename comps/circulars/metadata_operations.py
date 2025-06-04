@@ -1,16 +1,17 @@
 from pydantic import BaseModel
 from typing import Optional
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Request, Query
 from datetime import datetime
 import traceback
 from comps.mongo_client import mongo_client
 
-collection = mongo_client['easy_circulars']['circulars']
+circulars_collection = mongo_client['easy_circulars']['circulars']
+bookmarks_collection = mongo_client['easy_circulars']['bookmarks']
 
-class CircularUpdateData(BaseModel):
-    circular_id: str
-    bookmark: Optional[bool] = None
-    conversation_id: Optional[str] = None 
+# class CircularUpdateData(BaseModel):
+#     circular_id: str
+#     bookmark: Optional[bool] = None
+#     conversation_id: Optional[str] = None 
 
 async def handle_circular_post(request: Request):
     try:
@@ -18,40 +19,20 @@ async def handle_circular_post(request: Request):
         if 'date' in circular_data:
             circular_data['date'] = datetime.fromisoformat(circular_data['date'])
 
-        inserted_circular_data = collection.insert_one(circular_data)
+        inserted_circular_data = circulars_collection.insert_one(circular_data)
         circular_id = str(inserted_circular_data.inserted_id)
         return circular_id
 
     except Exception as e:
         print(e)
         raise Exception(e)  
-
-def handle_circular_update(circularUpdate: CircularUpdateData):
-    try:
-        update_fields = {}
-        if circularUpdate.bookmark is not None:
-            update_fields["bookmark"] = circularUpdate.bookmark
-        if circularUpdate.conversation_id is not None:
-            update_fields["conversation_id"] = circularUpdate.conversation_id
-        updated_result = collection.update_one(
-            {"_id": circularUpdate.circular_id},
-            {"$set": update_fields},
-        )
-
-        if updated_result.modified_count == 1:
-            return True
-        else:
-            raise Exception("Not able to update the data.")
-
-    except Exception as e:
-        raise Exception(e)
     
 def get_active_months_for_year(year: int) -> list[int]:
     try:
         start_date = datetime(year, 1, 1)
         end_date = datetime(year + 1, 1, 1)
 
-        cursor = collection.find({
+        cursor = circulars_collection.find({
             "date": {
                 "$gte": start_date,
                 "$lt": end_date
@@ -68,24 +49,9 @@ def get_active_months_for_year(year: int) -> list[int]:
         print(f"Error getting months with circulars for year {year}:", e)
         raise Exception(e)
     
-def get_bookmarked_circulars() -> list[dict]:
-    try:
-        circulars: list = []
-        cursor = collection.find({"bookmark": True})
-
-        for document in cursor:
-            document["circular_id"] = str(document["_id"])
-            del document["_id"]
-            circulars.append(document)
-        return circulars
-
-    except Exception as e:
-        print(e)
-        raise Exception(e)
-    
 def get_circular_by_id(circular_id) -> dict | None:
     try:
-        main_circular = collection.find_one({"_id": circular_id})
+        main_circular = circulars_collection.find_one({"_id": circular_id})
         if not main_circular:
             return None
 
@@ -111,7 +77,7 @@ def get_circulars_by_month_and_year(month, year) -> list[dict]:
         else:
             end_date = datetime(year, month + 1, 1)
 
-        cursor = collection.find({
+        cursor = circulars_collection.find({
             "date": {
                 "$gte": start_date,
                 "$lt": end_date
@@ -131,7 +97,7 @@ def get_circulars_by_month_and_year(month, year) -> list[dict]:
 def get_all_circulars() -> list[dict]:
     try:
         circulars: list = []
-        cursor = collection.find().sort("date", -1)
+        cursor = circulars_collection.find().sort("date", -1)
 
         for document in cursor:
             document["circular_id"] = str(document["_id"])
@@ -146,16 +112,13 @@ def get_all_circulars() -> list[dict]:
 def handle_circular_get(request: Request):
     try:
         circular_id = request.query_params.get("circular_id")
-        bookmark = request.query_params.get("bookmark", "false").lower() == "true"
         only_months = request.query_params.get("only_months", "false").lower() == "true"
         year_param = request.query_params.get("year")
         month_param = request.query_params.get("month")
         year = int(year_param) if year_param is not None else None
         month = int(month_param) if month_param is not None else None
         
-        if bookmark:
-            response = get_bookmarked_circulars()
-        elif year and only_months:
+        if year and only_months:
             response = get_active_months_for_year(year)
         elif circular_id:
             response = get_circular_by_id(circular_id)
@@ -173,3 +136,77 @@ def handle_circular_get(request: Request):
         }
         print("Error fetching circulars:", error_details)
         raise HTTPException(status_code=500, detail=error_details)
+    
+async def handle_bookmarks_post(request: Request):
+    try:
+        circular_data = await request.json()
+        user_id = circular_data["user_id"]
+        circular_id = circular_data["circular_id"]
+        bookmarks_collection.update_one(
+            {"user_id": user_id, "circular_id": circular_id},
+            [
+                {
+                    "$set": {
+                        "bookmark": { "$not": "$bookmark" }
+                    }
+                }
+            ],
+            upsert=True
+        )
+        return {"message": "Bookmark added or updated"}
+
+    except Exception as e:
+        print(e)
+        raise Exception(e)  
+    
+def handle_bookmarks_get(request: Request):
+    try:
+        user_id = request.query_params["user_id"]
+        circular_id = request.query_params.get("circular_id")
+
+        query = {
+            "user_id": user_id,
+            "bookmark": True
+        }
+
+        if circular_id:
+            query["circular_id"] = circular_id
+            doc = bookmarks_collection.find_one(query)
+            if not doc:
+                return {"bookmarked": False}
+            return {"bookmarked": True}
+
+        bookmarked = bookmarks_collection.find(query)
+        circular_ids = [doc["circular_id"] for doc in bookmarked]
+
+        circulars: list = []
+        cursor = circulars_collection.find({
+            "_id": {"$in": circular_ids}
+        })
+
+        for document in cursor:
+            document["circular_id"] = str(document["_id"])
+            del document["_id"]
+            circulars.append(document)
+
+        return circulars
+
+    except Exception as e:
+        error_details = {
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
+        print("Error fetching circulars:", error_details)
+        raise HTTPException(status_code=500, detail=error_details)
+    
+async def handle_bookmarks_delete(user_id: str = Query(...), circular_id: str = Query(...)):
+    try:
+        bookmarks_collection.update_one(
+            {"user_id": user_id, "circular_id": circular_id},
+            {"$set": {"bookmark": False}}
+        )
+        return {"message": "Bookmark removed"}
+
+    except Exception as e:
+        print(e)
+        raise Exception(e) 

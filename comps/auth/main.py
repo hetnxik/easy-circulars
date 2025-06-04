@@ -1,39 +1,25 @@
-from fastapi import FastAPI, HTTPException, Request, Header
-from fastapi.middleware.cors import CORSMiddleware
+from comps.auth.mongo import User, validate, get_user_id_and_name
+from fastapi import HTTPException
 from pydantic import BaseModel
-from mongo import User, validate, get_user_id
 
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # or "*" for development
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-class UserInput(BaseModel):
-    username: str
+class UserRegisterInput(BaseModel):
+    name: str
+    email: str
+    password: str
+    
+class UserLoginInput(BaseModel):
+    email: str
     password: str
 
-
-@app.post("/register")
-def register(user: UserInput):
-    new_user = User(user.username, user.password)
+def handle_user_register(user: UserRegisterInput):
+    new_user = User(user.name, user.email, user.password)
     result = new_user.register()
     if result["status"] == "error":
         raise HTTPException(status_code=400, detail=result["msg"])
     return {"message": "Registered successfully", "user_id": result["user_id"]}
 
-@app.post("/login")
-def login(user: UserInput):
-    if validate(user.username, user.password):
-        user_id = get_user_id(user.username)
-        return {"user_id": user_id}
+def handle_user_login(user: UserLoginInput):
+    if validate(user.email, user.password):
+        user_id, name = get_user_id_and_name(user.email)
+        return {"user_id": user_id, "name": name}
     raise HTTPException(status_code=400, detail="Invalid username or password")
-
-@app.get("/me")
-def get_current_user(user_id: str = Header(...)):
-    return {"user_id": user_id, "message": "This is your profile"}

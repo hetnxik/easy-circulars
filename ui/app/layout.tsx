@@ -7,11 +7,14 @@ import {
   Bookmark,
   GitCompareArrowsIcon as CompareArrows,
   Home,
+  UserPlus,
+  LogIn,
+  LogOut,
 } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem } from "@mui/material";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageTitleProvider } from "./contexts/PageTitleContext";
 import "./globals.css";
 
@@ -19,6 +22,20 @@ function Navbar() {
   const pathname = usePathname();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
+  const [key, setKey] = useState<string | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    const checkToken = () => {
+      const token = localStorage.getItem("token");
+      setKey(token);
+    };
+
+    checkToken();
+
+    window.addEventListener("authChange", checkToken);
+    return () => window.removeEventListener("authChange", checkToken);
+  }, []);
 
   const handleMouseEnter = (event: React.MouseEvent<HTMLDivElement>) => {
     setAnchorEl(event.currentTarget);
@@ -28,12 +45,15 @@ function Navbar() {
     setAnchorEl(null);
   };
 
-  const navItems = [
-    { href: "/", icon: Home, label: "Home" },
+  const authItems = [
     { href: "/bookmarks", icon: Bookmark, label: "Bookmarks" },
     { href: "/compare", icon: CompareArrows, label: "Compare Circulars" },
-    { href: "/login", icon: Home, label: "Login"},
   ];
+
+  const nonAuthItems = [
+    { href: "/login", icon: LogIn, label: "Login"},
+    { href: "/register", icon: UserPlus, label: "Register"},
+  ]
 
   return (
     <nav className="w-full border-b border-border bg-card p-4 flex items-center justify-between">
@@ -59,31 +79,66 @@ function Navbar() {
           </Button>
         </Link>
 
-        <div
-          className="relative"
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-        >
-          <Button variant="ghost" className="flex items-center gap-2 px-4 py-2">
-            <Search className="h-5 w-5" />
-            <span>Search Circulars</span>
-          </Button>
-          <Menu
-            anchorEl={anchorEl}
-            open={open}
-            onClose={handleMouseLeave}
-            MenuListProps={{ onMouseLeave: handleMouseLeave }}
+        {key &&
+          <div
+            className="relative"
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
           >
-            <MenuItem component={Link} href="/search/keyword-tag">
-              By Keyword & Tag
-            </MenuItem>
-            <MenuItem component={Link} href="/search/year-month">
-              By Year & Month
-            </MenuItem>
-          </Menu>
-        </div>
+            <Button variant="ghost" className="flex items-center gap-2 px-4 py-2">
+              <Search className="h-5 w-5" />
+              <span>Search Circulars</span>
+            </Button>
+            <Menu
+              anchorEl={anchorEl}
+              open={open}
+              onClose={handleMouseLeave}
+              MenuListProps={{ onMouseLeave: handleMouseLeave }}
+            >
+              <MenuItem component={Link} href="/search/keyword-tag">
+                By Keyword & Tag
+              </MenuItem>
+              <MenuItem component={Link} href="/search/year-month">
+                By Year & Month
+              </MenuItem>
+            </Menu>
+          </div>
+        }
 
-        {navItems.slice(1).map((item) => (
+        {key && authItems.map((item) => (
+          <Link key={item.href} href={item.href}>
+            <Button
+              variant={pathname === item.href ? "secondary" : "ghost"}
+              className={`flex items-center gap-2 px-4 py-2 hover:bg-transparent ${
+                pathname === item.href
+                  ? "bg-intel-blue text-white hover:bg-intel-blue hover:text-white"
+                  : "hover:text-foreground"
+              }`}
+            >
+              <item.icon className="h-5 w-5" />
+              <span>{item.label}</span>
+            </Button>
+          </Link>
+        ))}
+
+        {key && (
+            <Button
+              variant="ghost"
+              className="flex items-center gap-2 px-4 py-2 hover:bg-transparent hover:text-foreground"
+              onClick={() => {
+                localStorage.removeItem("token");
+                localStorage.removeItem("name")
+                window.dispatchEvent(new Event("authChange"));
+                router.push("/");
+              }}
+            >
+              <LogOut className="h-5 w-5" />
+              <span>Logout</span>
+            </Button>
+          )
+        }
+
+        {!key && nonAuthItems.map((item) => (
           <Link key={item.href} href={item.href}>
             <Button
               variant={pathname === item.href ? "secondary" : "ghost"}

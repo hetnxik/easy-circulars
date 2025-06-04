@@ -16,8 +16,9 @@ from comps.proto.api_protocol import (
     UsageInfo,
 )
 from comps.proto.docarray import LLMParams, RerankerParms, RetrieverParms
-from comps.circulars.metadata_operations import handle_circular_update, handle_circular_get, handle_circular_post
+from comps.circulars.metadata_operations import handle_circular_get, handle_circular_post, handle_bookmarks_delete, handle_bookmarks_get, handle_bookmarks_post
 from comps.circulars.neo4j_operations import handle_circular_get_references, handle_circular_get_versions, handle_circular_get_related_nodes
+from comps.auth.main import handle_user_login, handle_user_register
 from fastapi.responses import StreamingResponse
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
@@ -256,6 +257,7 @@ class SourceInfo(BaseModel):
 class ConversationRequest(BaseModel):
     question: str
     db_name: str
+    user_id: str
     circular_id: str
     conversation_id: Optional[str] = None
     max_tokens: Optional[int] = 1024
@@ -554,21 +556,42 @@ class ConversationRAGService(ChatQnAService):
         try:
             data = await request.json()
             db = self.mongo_client[data["db_name"]]
+            user_id = data["user_id"]
+            circular_id = data["circular_id"]
             conversations_collection = db["conversations"]
+
+            existing = conversations_collection.find_one({
+                "user_id": user_id,
+                "circular_id": circular_id
+            })
+
+            if existing:
+                return JSONResponse(content={
+                    "conversation_id": existing["conversation_id"],
+                    "existing": True
+                })
+
             conversation_id = str(uuid4())
             self.active_conversations[conversation_id] = []
+
             conversations_collection.insert_one({
                 "conversation_id": conversation_id,
+                "user_id": user_id,
+                "circular_id": circular_id,
                 "created_at": datetime.now(),
                 "last_updated": datetime.now(),
                 "history": []
             })
-            
-            return JSONResponse(content={"conversation_id": conversation_id})
+
+            return JSONResponse(content={
+                "conversation_id": conversation_id,
+                "existing": False
+            })
+
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    def save_conversation_turn(self, conversation_id: str, question: str, conversations_collection, answer: str, sources: List[Dict]):
+    def save_conversation_turn(self, conversation_id: str, user_id: str, circular_id: str, question: str, conversations_collection, answer: str, sources: List[Dict]):
         turn = {
             "question": question,
             "answer": answer,
@@ -585,7 +608,7 @@ class ConversationRAGService(ChatQnAService):
         
         # Save to MongoDB
         conversations_collection.update_one(
-            {"conversation_id": conversation_id},
+            {"conversation_id": conversation_id, "user_id": user_id, "circular_id": circular_id},
             {
                 "$set": {
                     "last_updated": datetime.now().isoformat(),
@@ -612,7 +635,7 @@ class ConversationRAGService(ChatQnAService):
             data = await request.json()
             conversation_request = ConversationRequest.parse_obj(data)
 
-            stream = data.get("stream", False)
+            stream = data.get("stream", False)           
 
             db = self.mongo_client[conversation_request.db_name]
             circulars_collection = db["circulars"]
@@ -628,7 +651,7 @@ class ConversationRAGService(ChatQnAService):
             
             if conversation_request.conversation_id not in self.active_conversations:
                 stored_conversation = conversations_collection.find_one(
-                    {"conversation_id": conversation_request.conversation_id}
+                    {"conversation_id": conversation_request.conversation_id, "user_id": conversation_request.user_id, "circular_id": circular_id}
                 )
                 if stored_conversation:
                     self.active_conversations[conversation_request.conversation_id] = stored_conversation["history"]
@@ -697,6 +720,8 @@ class ConversationRAGService(ChatQnAService):
                 
                 self.save_conversation_turn(
                     conversation_request.conversation_id,
+                    conversation_request.user_id,
+                    circular_id,
                     conversation_request.question,
                     conversations_collection,
                     answer,
@@ -724,6 +749,8 @@ class ConversationRAGService(ChatQnAService):
                 
                 self.save_conversation_turn(
                     conversation_request.conversation_id,
+                    conversation_request.user_id,
+                    circular_id,
                     conversation_request.question,
                     answer,
                     processed_sources
@@ -761,9 +788,19 @@ class ConversationRAGService(ChatQnAService):
         try:
             query_params = dict(request.query_params)
             db_name = query_params.get("db_name")
+            user_id = query_params.get("user_id")
+            circular_id = query_params.get("circular_id")
             db = self.mongo_client[db_name]
             conversations_collection = db["conversations"]
-            conversation_id = request.path_params["conversation_id"]
+            
+            conversation = conversations_collection.find_one(
+                {"circular_id": circular_id, "user_id": user_id}
+            )
+            
+            if conversation:
+                conversation_id = conversation.get("conversation_id")
+            else:
+                conversation_id = None
             
             if conversation_id in self.active_conversations:
                 stored_conversation = conversations_collection.find_one(
@@ -775,7 +812,7 @@ class ConversationRAGService(ChatQnAService):
                     return JSONResponse(content=serialized_data)
             
             stored_conversation = conversations_collection.find_one(
-                {"conversation_id": conversation_id}
+                {"circular_id": circular_id,"user_id": user_id}
             )
             
             if stored_conversation:
@@ -795,6 +832,7 @@ class ConversationRAGService(ChatQnAService):
             conversation_id = request.path_params["conversation_id"]
             query_params = dict(request.query_params)
             db_name = query_params.get("db_name")
+            user_id = query_params.get("user_id")
             
             if not db_name:
                 raise HTTPException(status_code=400, detail="Missing required query parameter 'db_name'")
@@ -805,7 +843,7 @@ class ConversationRAGService(ChatQnAService):
             self.active_conversations.pop(conversation_id, None)
             
             result = conversations_collection.delete_one(
-                {"conversation_id": conversation_id}
+                {"conversation_id": conversation_id, "user_id": user_id}
             )
             
             if result.deleted_count == 0:
@@ -822,6 +860,7 @@ class ConversationRAGService(ChatQnAService):
         try:
             query_params = dict(request.query_params)
             db_name = query_params.get("db_name")
+            user_id = query_params.get("user_id")
             db = self.mongo_client[db_name]
             conversations_collection = db["conversations"]
             
@@ -829,7 +868,7 @@ class ConversationRAGService(ChatQnAService):
             skip = int(query_params.get("skip", 0))
             
             conversations = list(conversations_collection
-                                .find({}, {'_id': 0})
+                                .find({'user_id': user_id}, {'_id': 0})
                                 .sort('last_updated', -1)
                                 .skip(skip)
                                 .limit(limit))
@@ -858,13 +897,17 @@ class ConversationRAGService(ChatQnAService):
             input_datatype=ConversationRequest,
             output_datatype=ConversationResponse,
         )
-
+        
+        self.service.add_route("/api/login", handle_user_login, methods=["POST"])
+        self.service.add_route("/api/register", handle_user_register, methods=["POST"])
+        self.service.add_route("/api/conversations/history", self.handle_get_history, methods=["GET"])
         self.service.add_route("/api/conversations/new", self.handle_new_conversation, methods=["POST"])
         self.service.add_route("/api/conversations/{conversation_id}", self.handle_chat_request, methods=["POST"])
-        self.service.add_route("/api/conversations/{conversation_id}", self.handle_get_history, methods=["GET"])
         self.service.add_route("/api/conversations/{conversation_id}", self.handle_delete_conversation, methods=["DELETE"])
         self.service.add_route("/api/conversations", self.handle_list_conversations, methods=["GET"])
-        self.service.add_route("/api/circulars", handle_circular_update, methods=["PATCH"])
+        self.service.add_route("/api/bookmarks", handle_bookmarks_get, methods=["GET"])
+        self.service.add_route("/api/bookmarks", handle_bookmarks_post, methods=["POST"])
+        self.service.add_route("/api/bookmarks", handle_bookmarks_delete, methods=["DELETE"])
         self.service.add_route("/api/circulars", handle_circular_get, methods=["GET"])
         self.service.add_route("/api/circulars", handle_circular_post, methods=["POST"])
         self.service.add_route("/api/circular-references", handle_circular_get_references, methods=["GET"])

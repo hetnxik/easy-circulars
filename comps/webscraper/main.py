@@ -197,9 +197,7 @@ class WebScraperService:
             'title': circular.title,
             'tags': getattr(circular, 'tags', []),
             'date': api_date,
-            'bookmark': getattr(circular, 'bookmark', False),
             'path': str(circular.path) if circular.path else None,
-            'conversation_id': getattr(circular, 'conversation_id', None),
             'pdf_url': circular.pdf_url
         }
         url = f"http://{server_host_ip}:{server_port}/api/circulars"
